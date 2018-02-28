@@ -14,6 +14,8 @@ from skimage.color import rgb2gray
 from scipy import stats
 import glob
 
+import time
+
 
 ### DATA LOADING ###
 
@@ -38,9 +40,6 @@ class Mask():
 		self.im = im
 		self.path = path
 		self.dir_id = dir_id
-
-
-
 
 
 # Load all the train images
@@ -91,6 +90,36 @@ def get_test_images():
 def get_nuclei_pixels(image):
     return np.argwhere(image != 0)
 
+### PIXEL ENCODING ### 
+# source:
+# Sam StainsbyFast, tested RLE and input routines
+# https://www.kaggle.com/stainsby/fast-tested-rle-and-input-routines
 
-get_train_images()
+
+def encode(mask):
+    pixels = mask.T.flatten()
+    # We need to allow for cases where there is a '1' at either end of the sequence.
+    # We do this by padding with a zero at each end when needed.
+    use_padding = False
+    if pixels[0] or pixels[-1]:
+        use_padding = True
+        pixel_padded = np.zeros([len(pixels) + 2], dtype=pixels.dtype)
+        pixel_padded[1:-1] = pixels
+        pixels = pixel_padded
+    rle = np.where(pixels[1:] != pixels[:-1])[0] + 2
+    if use_padding:
+        rle = rle - 1
+    rle[1::2] = rle[1::2] - rle[:-1:2]
+    return rle
+
+
+def rle_to_string(runs):
+    return ' '.join(str(x) for x in runs)
+
+
+
+
+
+
+
 
