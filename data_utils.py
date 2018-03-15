@@ -13,7 +13,9 @@ import matplotlib.pyplot as plt
 from skimage.color import rgb2gray
 from scipy import stats
 import glob
-
+import matplotlib.pyplot as plt
+import seaborn as sn
+import pandas as pd
 import time
 
 
@@ -90,9 +92,59 @@ def get_test_images():
 def get_nuclei_pixels(image):
     return np.argwhere(image != 0)
 
+
+
+def get_total_mask(image, train_masks):
+	associated_masks = []
+	for m in train_masks:
+		if m.dir_id == image.dir_id:
+			associated_masks.append(m)
+	return combine_masks(associated_masks)
+
+
+# given a list of individual nuclei masks, combine them into a 
+# single mask image
+def combine_masks(mask_list):
+	mask = mask_list[0].im
+	for m in mask_list:
+		mask += m.im
+
+	mask[mask > 0] = 1
+	mask[mask <0]=0
+	return mask
+
+
+# Breaks up an image and mask pari into sub images/masks.
+# This is super helpful to help normalize the data size, as 
+# well as to create more data.
+def convolve(image,mask,dim=128,stride=20):
+	a = rgb2gray(image.im)
+	sub_shape = (dim, dim)
+	view_shape = tuple(np.subtract(a.shape, sub_shape) + 1) + sub_shape
+	strides = a.strides + a.strides
+	sub_matrices = np.lib.stride_tricks.as_strided(a,view_shape,strides)
+
+	# reshape
+	num_images = sub_matrices.shape[0]*sub_matrices.shape[1]
+	sub_matrices = sub_matrices.reshape(num_images,dim,dim);
+
+	am = mask
+	sub_shapem = (dim, dim)
+	view_shapem = tuple(np.subtract(mask.shape, sub_shapem) + 1) + sub_shapem
+	stridesm = am.strides + am.strides
+	sub_matricesm = np.lib.stride_tricks.as_strided(am,view_shapem,stridesm)
+
+	# reshape
+	num_masks = sub_matricesm.shape[0]*sub_matricesm.shape[1]
+	sub_matricesm = sub_matricesm.reshape(num_masks,dim,dim);
+
+	return sub_matrices, sub_matricesm
+
+
 ### PIXEL ENCODING ### 
 # source:
-# Sam StainsbyFast, tested RLE and input routines
+# Sam Stainsby 
+# Fast,tested RLE and input routines
 # https://www.kaggle.com/stainsby/fast-tested-rle-and-input-routines
 
 
@@ -118,8 +170,20 @@ def rle_to_string(runs):
 
 
 
+def rle_decode(rle_str, mask_shape, mask_dtype):
+    s = rle_str.split()
+    starts, lengths = [np.asarray(x, dtype=int) for x in (s[0:][::2], s[1:][::2])]
+    starts -= 1
+    ends = starts + lengths
+    mask = np.zeros(np.prod(mask_shape), dtype=mask_dtype)
+    for lo, hi in zip(starts, ends):
+        mask[lo:hi] = 1
+    return mask.reshape(mask_shape[::-1]).T
 
 
-
-
-
+### Plotting ###
+def plot_confusion_matrix(array):
+    df_cm = pd.DataFrame(array, index = [i for i in ["True Nuclei"," True Not-Nuclei"]],
+                      columns = [i for i in ["Predicted Nuclei","Predicted Not-Nuclei"]])
+    plt.figure(figsize = (10,7))
+    sn.heatmap(df_cm, annot=True)
