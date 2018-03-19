@@ -43,12 +43,12 @@ def naive_threshold(image, thresh = 0.1):
 # Uses Otsu thresholding to label nuclei.
 # Returns the mask.
 def otsu_threshold(image):
-	bw = rgb2gray(image.im)
+	bw = rgb2gray(image)
 	val = filters.threshold_otsu(bw)
 	return bw > val
 
 def random_walk_threshold(image):
-	bw = rgb2gray(image.im)
+	bw = rgb2gray(image)
 	markers = np.zeros(bw.shape, dtype=np.uint)
 	markers[bw < 0.5] = 0
 	markers[bw > 0.5] = 1

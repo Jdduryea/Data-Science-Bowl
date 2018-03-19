@@ -117,16 +117,18 @@ def combine_masks(mask_list):
 # Breaks up an image and mask pari into sub images/masks.
 # This is super helpful to help normalize the data size, as 
 # well as to create more data.
-def convolve(image,mask,dim=128,stride=20):
+def convolve(image,mask,dim=128,sample_size=100):
 	a = rgb2gray(image.im)
 	sub_shape = (dim, dim)
 	view_shape = tuple(np.subtract(a.shape, sub_shape) + 1) + sub_shape
 	strides = a.strides + a.strides
+	#strides = [10,11,12,13]
 	sub_matrices = np.lib.stride_tricks.as_strided(a,view_shape,strides)
 
+
 	# reshape
-	num_images = sub_matrices.shape[0]*sub_matrices.shape[1]
-	sub_matrices = sub_matrices.reshape(num_images,dim,dim);
+	#num_images = sub_matrices.shape[0]*sub_matrices.shape[1]
+	#sub_matrices = sub_matrices.reshape(num_images,dim,dim);
 
 	am = mask
 	sub_shapem = (dim, dim)
@@ -135,10 +137,13 @@ def convolve(image,mask,dim=128,stride=20):
 	sub_matricesm = np.lib.stride_tricks.as_strided(am,view_shapem,stridesm)
 
 	# reshape
-	num_masks = sub_matricesm.shape[0]*sub_matricesm.shape[1]
-	sub_matricesm = sub_matricesm.reshape(num_masks,dim,dim);
+	rand_row_indices = np.random.randint(len(sub_matricesm), size = sample_size)
+	rand_col_indices = np.random.randint(len(sub_matricesm[0]), size = sample_size)
 
-	return sub_matrices, sub_matricesm
+	sample_images = sub_matrices[rand_row_indices, rand_col_indices]
+	sample_masks = sub_matricesm[rand_row_indices, rand_col_indices]
+
+	return sample_images, sample_masks
 
 
 ### PIXEL ENCODING ### 
