@@ -17,6 +17,7 @@ import matplotlib.pyplot as plt
 import seaborn as sn
 import pandas as pd
 import time
+import skimage
 
 
 ### DATA LOADING ###
@@ -146,35 +147,28 @@ def convolve(image,mask,dim=128,sample_size=100):
 	return sample_images, sample_masks
 
 
-### PIXEL ENCODING ### 
+### PIXEL ENCODING AND SUBMISSION ### 
 # source:
 # Sam Stainsby 
 # Fast,tested RLE and input routines
 # https://www.kaggle.com/stainsby/fast-tested-rle-and-input-routines
 
-
+# source :https://www.kaggle.com/jruizvar/otsu-thresholding-segmentation
 def encode(mask):
-    pixels = mask.T.flatten()
-    # We need to allow for cases where there is a '1' at either end of the sequence.
-    # We do this by padding with a zero at each end when needed.
-    use_padding = False
-    if pixels[0] or pixels[-1]:
-        use_padding = True
-        pixel_padded = np.zeros([len(pixels) + 2], dtype=pixels.dtype)
-        pixel_padded[1:-1] = pixels
-        pixels = pixel_padded
-    rle = np.where(pixels[1:] != pixels[:-1])[0] + 2
-    if use_padding:
-        rle = rle - 1
-    rle[1::2] = rle[1::2] - rle[:-1:2]
-    return rle
+    pixels = mask.flatten('F')
+    pixels[0] = 0
+    pixels[-1] = 0
+    runs = np.where(pixels[1:] != pixels[:-1])[0] + 2
+    runs[1::2] = runs[1::2] - runs[:-1:2]
+    return ' '.join(str(x) for x in runs)
 
 
+# source : https://www.kaggle.com/stainsby/fast-tested-rle-and-input-routines
 def rle_to_string(runs):
     return ' '.join(str(x) for x in runs)
 
 
-
+# source :https://www.kaggle.com/stainsby/fast-tested-rle-and-input-routines
 def rle_decode(rle_str, mask_shape, mask_dtype):
     s = rle_str.split()
     starts, lengths = [np.asarray(x, dtype=int) for x in (s[0:][::2], s[1:][::2])]
@@ -184,6 +178,45 @@ def rle_decode(rle_str, mask_shape, mask_dtype):
     for lo, hi in zip(starts, ends):
         mask[lo:hi] = 1
     return mask.reshape(mask_shape[::-1]).T
+
+
+# given an image id, returns a list of strings 
+# that given the rle encodedings of the predicted nuclei,
+# one string per nuclei
+def binary_label_encode(predicted_mask):
+	rles = []
+	# This submission code provided by https://www.kaggle.com/jruizvar/otsu-thresholding-segmentation
+	labeled_array, num_features = skimage.measure.label(predicted_mask, return_num=True)
+	for label in range(1, num_features+1):
+		mask = labeled_array == label
+		mask_encoded = encode(mask)
+		rles.append(str(mask_encoded)[1:-1])
+	return rles
+
+def make_submission(image_ids, predicted_masks):
+	if len(image_ids) != len(predicted_masks):
+		print "error, lengths don't match"
+		return -1
+
+	ids = []
+	rles = []
+
+	for i in range(len(image_ids)):
+		im_id = image_ids[i]
+		im_id = im_id[im_id.rindex("/")+1:im_id.rindex(".")]
+		predicted_mask = predicted_masks[i]
+		encodings = binary_label_encode(predicted_mask)
+		for i in range(len(encodings)):
+			ids.append(im_id)
+			rles.append(encodings[i])
+
+	print len(ids)
+	print len(rles)
+	data = {"ImageId":ids,"EncodedPixels":rles}
+	df = pd.DataFrame.from_dict(data)
+	df = df[["ImageId","EncodedPixels"]]
+	df.to_csv("sumission_test.csv",index=False)
+
 
 
 ### Plotting ###
