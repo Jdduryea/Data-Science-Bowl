@@ -17,6 +17,7 @@ import matplotlib.pyplot as plt
 import seaborn as sn
 import pandas as pd
 import time
+from tqdm import tqdm
 import skimage
 
 
@@ -50,7 +51,7 @@ class Mask():
 def get_train_images():
 	#images = np.array([])
 	images = []
-	for path in glob.iglob('stage1_train/*/images/*'):
+	for path in tqdm(glob.iglob('stage1_train/*/images/*')):
 		im = imageio.imread(path)
 		#im = rgb2gray(im)
 
@@ -65,7 +66,7 @@ def get_train_images():
 def get_train_masks():
 	#masks = np.array([])
 	masks = []
-	for path in glob.iglob('stage1_train/*/masks/*'):
+	for path in tqdm(glob.iglob('stage1_train/*/masks/*')):
 		im = imageio.imread(path)
 		#im = rgb2gray(im)
 		#masks = np.append(masks, im, axis=0)
@@ -78,7 +79,7 @@ def get_train_masks():
 def get_test_images():
 	#images = np.array([])
 	images = []
-	for path in glob.iglob('stage1_test/*/images/*.png'):
+	for path in tqdm(glob.iglob('stage1_test/*/images/*.png')):
 		im = imageio.imread(path)
 		#im = rgb2gray(im)
 
@@ -86,6 +87,20 @@ def get_test_images():
 		full_image = FullImage(im, path, dir_id)
 		images.append(full_image)
 	return images
+
+def preprocess_image(image):
+	# Step 2. Change image to black and white
+
+	bw = rgb2gray(image.im)
+	
+	# Step 2. polarizatton correction , we want the mean to less than 0.5
+	mu = np.mean(bw)
+	image.im = bw
+	if mu > 0.5:
+		image.im = 1-bw
+
+
+
 
 
 # Given a mask image, returns the coordinates of nuclei
@@ -97,7 +112,7 @@ def get_nuclei_pixels(image):
 
 def get_total_mask(image, train_masks):
 	associated_masks = []
-	for m in train_masks:
+	for m in tqdm(train_masks):
 		if m.dir_id == image.dir_id:
 			associated_masks.append(m)
 	return combine_masks(associated_masks)
@@ -153,14 +168,17 @@ def convolve(image,mask,dim=128,sample_size=100):
 # Fast,tested RLE and input routines
 # https://www.kaggle.com/stainsby/fast-tested-rle-and-input-routines
 
-# source :https://www.kaggle.com/jruizvar/otsu-thresholding-segmentation
+# https://www.kaggle.com/akshayt19nayak/getting-started-image-processing-basics
 def encode(mask):
-    pixels = mask.flatten('F')
-    pixels[0] = 0
-    pixels[-1] = 0
-    runs = np.where(pixels[1:] != pixels[:-1])[0] + 2
-    runs[1::2] = runs[1::2] - runs[:-1:2]
-    return ' '.join(str(x) for x in runs)
+
+    dots = np.where(mask.T.flatten()==1)[0] # .T sets order down-then-right
+    run_lengths = []
+    prev = -2
+    for b in tqdm(dots):
+        if (b > prev+1): run_lengths.extend((b+1, 0))
+        run_lengths[-1] += 1
+        prev = b
+    return " ".join([str(i) for i in run_lengths])
 
 
 # source : https://www.kaggle.com/stainsby/fast-tested-rle-and-input-routines
@@ -201,7 +219,7 @@ def make_submission(image_ids, predicted_masks):
 	ids = []
 	rles = []
 
-	for i in range(len(image_ids)):
+	for i in tqdm(range(len(image_ids))):
 		im_id = image_ids[i]
 		im_id = im_id[im_id.rindex("/")+1:im_id.rindex(".")]
 		predicted_mask = predicted_masks[i]
