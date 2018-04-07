@@ -112,7 +112,7 @@ def get_nuclei_pixels(image):
 
 def get_total_mask(image, train_masks):
 	associated_masks = []
-	for m in tqdm(train_masks):
+	for m in train_masks:
 		if m.dir_id == image.dir_id:
 			associated_masks.append(m)
 	return combine_masks(associated_masks)
@@ -169,17 +169,26 @@ def convolve(image,mask,dim=128,sample_size=100):
 # https://www.kaggle.com/stainsby/fast-tested-rle-and-input-routines
 
 # https://www.kaggle.com/akshayt19nayak/getting-started-image-processing-basics
-def encode(mask):
+# def encode(mask):
 
-    dots = np.where(mask.T.flatten()==1)[0] # .T sets order down-then-right
-    run_lengths = []
-    prev = -2
-    for b in tqdm(dots):
-        if (b > prev+1): run_lengths.extend((b+1, 0))
-        run_lengths[-1] += 1
-        prev = b
-    return " ".join([str(i) for i in run_lengths])
+#     dots = np.where(mask.T.flatten()==1)[0] # .T sets order down-then-right
+#     run_lengths = []
+#     prev = -2
+#     for b in dots:
+#         if (b > prev+1): run_lengths.extend((b+1, 0))
+#         run_lengths[-1] += 1
+#         prev = b
+#     return " ".join([str(i) for i in run_lengths])
 
+def rle_encode(img):
+    """ Ref. https://www.kaggle.com/paulorzp/run-length-encode-and-decode
+    """
+    pixels = img.flatten('F')
+    pixels[0] = 0
+    pixels[-1] = 0
+    runs = np.where(pixels[1:] != pixels[:-1])[0] + 2
+    runs[1::2] = runs[1::2] - runs[:-1:2]
+    return ' '.join(str(x) for x in runs)
 
 # source : https://www.kaggle.com/stainsby/fast-tested-rle-and-input-routines
 def rle_to_string(runs):
@@ -207,11 +216,11 @@ def binary_label_encode(predicted_mask):
 	labeled_array, num_features = skimage.measure.label(predicted_mask, return_num=True)
 	for label in range(1, num_features+1):
 		mask = labeled_array == label
-		mask_encoded = encode(mask)
-		rles.append(str(mask_encoded)[1:-1])
+		mask_encoded = rle_encode(mask)
+		rles.append(str(mask_encoded))
 	return rles
 
-def make_submission(image_ids, predicted_masks):
+def make_submission(image_ids, predicted_masks,filename):
 	if len(image_ids) != len(predicted_masks):
 		print "error, lengths don't match"
 		return -1
@@ -219,7 +228,7 @@ def make_submission(image_ids, predicted_masks):
 	ids = []
 	rles = []
 
-	for i in tqdm(range(len(image_ids))):
+	for i in range(len(image_ids)):
 		im_id = image_ids[i]
 		im_id = im_id[im_id.rindex("/")+1:im_id.rindex(".")]
 		predicted_mask = predicted_masks[i]
@@ -233,7 +242,7 @@ def make_submission(image_ids, predicted_masks):
 	data = {"ImageId":ids,"EncodedPixels":rles}
 	df = pd.DataFrame.from_dict(data)
 	df = df[["ImageId","EncodedPixels"]]
-	df.to_csv("sumission_test.csv",index=False)
+	df.to_csv(filename,index=False)
 
 
 
@@ -243,3 +252,8 @@ def plot_confusion_matrix(array):
                       columns = [i for i in ["Predicted Nuclei","Predicted Not-Nuclei"]])
     plt.figure(figsize = (10,7))
     sn.heatmap(df_cm, annot=True)
+
+
+
+
+
